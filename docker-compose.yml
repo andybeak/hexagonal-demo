@@ -1,0 +1,43 @@
+version: "3.9"
+services:
+  app:
+    depends_on:
+      db:
+        condition: service_healthy
+    build:
+      dockerfile: Dockerfile
+      context: .
+      target: dev
+    ports:
+      - ${EXTERNAL_HTTP_PORT}:${INTERNAL_HTTP_PORT}
+    volumes:
+      - .:/opt/app/api
+      - ~/.ssh/id_rsa_git:/root/.ssh/id_rsa
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    environment:
+      HTTP_PORT: ${HTTP_PORT:-8080}
+      INTERNAL_HTTP_PORT: ${INTERNAL_HTTP_PORT:-:}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-"app"}
+      MYSQL_PASS: ${MYSQL_PASS:-"secret"}
+      MYSQL_USER: ${MYSQL_USER:-"root"}
+      MYSQL_PORT: ${MYSQL_PORT:-33140}
+      MYSQL_HOST: ${MYSQL_HOST:-"host.docker.internal"}
+
+  db:
+    image: mysql:5.7.16
+    command: --default-authentication-plugin=mysql_native_password
+    ports:
+      - "${MYSQL_PORT:-33140}:3306"
+    volumes:
+      - './_database/volume:/var/lib/mysql'
+      - './mysql-init-files:/docker-entrypoint-initdb.d'
+    environment:
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-"app"}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_PASS:-"secret"}
+      MYSQL_ROOT_HOST: "%"
+    healthcheck:
+      test: mysql ${MYSQL_DATABASE:-"app"} --user=root --password='${MYSQL_PASS:-"secret"}' --silent --execute "SELECT 1;"
+      interval: 10s
+      timeout: 5s
+      retries: 5
